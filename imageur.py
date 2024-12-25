@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS  # Import CORS
 import os
 import requests
 from urllib.parse import urlparse
@@ -8,6 +9,7 @@ import time
 from threading import Thread
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'temp_uploads'
@@ -88,4 +90,4 @@ Thread(target=cleanup_files, daemon=True).start()
 
 
 if __name__ == '__main__':
-    app.run(debug=False,host='0.0.0.0')
+    app.run(debug=False, host='0.0.0.0')
