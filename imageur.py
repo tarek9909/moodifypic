@@ -26,40 +26,34 @@ EXPIRY_TIME = 60  # Time in seconds (1 minute)
 @app.route('/upload-image', methods=['POST'])
 def upload_image():
     try:
-        # Parse JSON request
-        data = request.get_json()
-        image_url = data.get('image_url')
+        # Check if the file is present in the request
+        if 'image' not in request.files:
+            return jsonify({"error": "No file part"}), 400
 
-        if not image_url:
-            return jsonify({"error": "No image URL provided"}), 400
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
 
-        # Download the image
-        response = requests.get(image_url, stream=True)
-        if response.status_code != 200:
-            return jsonify({"error": "Failed to download image"}), 400
+        # Secure the filename
+        filename = secure_filename(file.filename)
 
-        # Extract filename and make it secure
-        parsed_url = urlparse(image_url)
-        filename = secure_filename(os.path.basename(parsed_url.path))
-
-        # Add a unique identifier to avoid conflicts
+        # Generate a unique filename
         unique_filename = f"{uuid.uuid4()}_{filename}"
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
 
-        # Save image to the temporary folder
-        with open(file_path, 'wb') as f:
-            for chunk in response.iter_content(1024):
-                f.write(chunk)
+        # Save the file to the server
+        file.save(file_path)
 
-        # Record the upload time for cleanup
+        # Record upload time for cleanup
         metadata[unique_filename] = time.time()
 
-        # Generate link to access the image
+        # Generate the URL to access the uploaded image
         image_link = request.url_root + 'images/' + unique_filename
         return jsonify({"image_link": image_link})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 @app.route('/images/<filename>', methods=['GET'])
