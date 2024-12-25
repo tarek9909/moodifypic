@@ -6,9 +6,13 @@ from werkzeug.utils import secure_filename
 import uuid
 import time
 from threading import Thread
-from flask_cors import CORS
+from flask_cors import CORS  # Import CORS
+
 app = Flask(__name__)
+
+# Enable CORS for all routes
 CORS(app)
+
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'temp_uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
