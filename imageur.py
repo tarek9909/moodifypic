@@ -8,7 +8,7 @@ import time
 from threading import Thread
 from flask_cors import CORS
 app = Flask(__name__)
-cors(app)
+CORS(app)
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'temp_uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
