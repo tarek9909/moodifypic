@@ -49,7 +49,7 @@ def upload_image():
 
         # Generate the URL to access the uploaded image
         image_link = request.url_root + 'images/' + unique_filename
-        return jsonify({"image_link": image_link})
+        return jsonify({ image_link})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
