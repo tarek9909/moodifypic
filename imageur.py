@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify, send_from_directory
 import os
+import requests
+from urllib.parse import urlparse
+from werkzeug.utils import secure_filename
 import uuid
 import time
-from werkzeug.utils import secure_filename
+from threading import Thread
 from flask_cors import CORS  # Import CORS
-from threading import Thread  # Import Thread
+from PIL import Image  # Import Pillow for image processing
 
 app = Flask(__name__)
 
@@ -14,7 +17,6 @@ CORS(app)
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'temp_uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 
 # Create the folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -23,42 +25,55 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 metadata = {}
 EXPIRY_TIME = 60  # Time in seconds (1 minute)
 
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+def convert_png_to_jpg(image_path):
+    """Convert PNG to JPG if needed."""
+    if image_path.lower().endswith('.png'):
+        img = Image.open(image_path).convert('RGB')  # Handle transparency
+        jpg_path = image_path.replace('.png', '.jpg')  # Change extension
+        img.save(jpg_path, 'JPEG')  # Save as JPG
+        os.remove(image_path)  # Delete original PNG
+        return jpg_path
+    return image_path
 
 
 @app.route('/upload-image', methods=['POST'])
 def upload_image():
     try:
-        # Check if the post request has the file part
-        if 'file' not in request.files:
-            return jsonify({"error": "No file part"}), 400
+        # Parse JSON request
+        data = request.get_json()
+        image_url = data.get('image_url')
 
-        file = request.files['file']
+        if not image_url:
+            return jsonify({"error": "No image URL provided"}), 400
 
-        if file.filename == '':
-            return jsonify({"error": "No selected file"}), 400
+        # Download the image
+        response = requests.get(image_url, stream=True)
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to download image"}), 400
 
-        if file and allowed_file(file.filename):
-            # Make the filename secure and add a unique identifier
-            filename = secure_filename(file.filename)
-            unique_filename = f"{uuid.uuid4()}_{filename}"
+        # Extract filename and make it secure
+        parsed_url = urlparse(image_url)
+        filename = secure_filename(os.path.basename(parsed_url.path))
 
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        # Add a unique identifier to avoid conflicts
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
 
-            # Save the file to the upload folder
-            file.save(file_path)
+        # Save image to the temporary folder
+        with open(file_path, 'wb') as f:
+            for chunk in response.iter_content(1024):
+                f.write(chunk)
 
-            # Record the upload time for cleanup
-            metadata[unique_filename] = time.time()
+        # Check if the image is PNG and convert it to JPG
+        converted_path = convert_png_to_jpg(file_path)
+        final_filename = os.path.basename(converted_path)
 
-            # Generate link to access the image
-            image_link = request.url_root + 'images/' + unique_filename
-            return jsonify({"image_link": image_link})
+        # Record the upload time for cleanup
+        metadata[final_filename] = time.time()
 
-        else:
-            return jsonify({"error": "File type not allowed"}), 400
+        # Generate link to access the image
+        image_link = request.url_root + 'images/' + final_filename
+        return jsonify({"image_link": image_link})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
