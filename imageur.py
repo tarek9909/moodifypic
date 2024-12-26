@@ -5,6 +5,7 @@ import time
 from werkzeug.utils import secure_filename
 from flask_cors import CORS  # Import CORS
 from threading import Thread  # Import Thread
+from PIL import Image  # Import PIL for image processing
 
 app = Flask(__name__)
 
@@ -28,6 +29,12 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 
+def convert_png_to_jpg(image):
+    """Converts a PNG image to JPG format and returns the image object."""
+    img = image.convert('RGB')  # Convert to RGB if the image has transparency
+    return img
+
+
 @app.route('/upload-image', methods=['POST'])
 def upload_image():
     try:
@@ -35,7 +42,7 @@ def upload_image():
         if 'file' not in request.files:
             return jsonify({"error": "No file part"}), 400
 
-        file = request.files['file']
+        file = request.files['file']  
 
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
@@ -45,16 +52,23 @@ def upload_image():
             filename = secure_filename(file.filename)
             unique_filename = f"{uuid.uuid4()}_{filename}"
 
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            # Open image to handle conversion before saving
+            image = Image.open(file)
 
-            # Save the file to the upload folder
-            file.save(file_path)
+            # Convert PNG to JPG if needed
+            if image.format.lower() == 'png':
+                image = convert_png_to_jpg(image)
+                unique_filename = f"{uuid.uuid4()}_{os.path.splitext(filename)[0]}.jpg"  # Change filename extension to .jpg
+
+            # Save the image to the upload folder
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            image.save(file_path, 'JPEG')  # Save as JPG
 
             # Record the upload time for cleanup
             metadata[unique_filename] = time.time()
 
             # Generate link to access the image
-            image_link = request.url_root + 'images/' + unique_filename
+            image_link = request.url_root + 'images/' + os.path.basename(file_path)
             return jsonify({"image_link": image_link})
 
         else:
