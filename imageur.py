@@ -26,14 +26,15 @@ metadata = {}
 EXPIRY_TIME = 60  # Time in seconds (1 minute)
 
 def convert_png_to_jpg(image_path):
-    """Convert PNG to JPG if needed."""
-    if image_path.lower().endswith('.png'):
-        img = Image.open(image_path).convert('RGB')  # Handle transparency
-        jpg_path = image_path.replace('.png', '.jpg')  # Change extension
-        img.save(jpg_path, 'JPEG')  # Save as JPG
-        os.remove(image_path)  # Delete original PNG
-        return jpg_path
-    return image_path
+    """Converts a PNG image to JPG format and returns the new file path."""
+    img = Image.open(image_path)
+    # Handle transparency by converting to RGB
+    if img.mode == 'RGBA':
+        img = img.convert('RGB')
+    # Create new path with .jpg extension
+    new_path = os.path.splitext(image_path)[0] + '.jpg'
+    img.save(new_path, 'JPEG')
+    return new_path
 
 
 @app.route('/upload-image', methods=['POST'])
