@@ -40,44 +40,47 @@ def convert_png_to_jpg(image_path):
 @app.route('/upload-image', methods=['POST'])
 def upload_image():
     try:
-        # Parse JSON request
         data = request.get_json()
         image_url = data.get('image_url')
 
         if not image_url:
             return jsonify({"error": "No image URL provided"}), 400
 
-        # Download the image
+        # Download image
         response = requests.get(image_url, stream=True)
         if response.status_code != 200:
             return jsonify({"error": "Failed to download image"}), 400
 
-        # Extract filename and make it secure
         parsed_url = urlparse(image_url)
         filename = secure_filename(os.path.basename(parsed_url.path))
-
-        # Add a unique identifier to avoid conflicts
         unique_filename = f"{uuid.uuid4()}_{filename}"
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
 
-        # Save image to the temporary folder
+        # Save image
         with open(file_path, 'wb') as f:
             for chunk in response.iter_content(1024):
                 f.write(chunk)
 
-        # Check if the image is PNG and convert it to JPG
-        converted_path = convert_png_to_jpg(file_path)
-        final_filename = os.path.basename(converted_path)
+        # Check if PNG and convert to JPG
+        if filename.lower().endswith('.png'):
+            converted_path = convert_png_to_jpg(file_path)
+            final_filename = os.path.basename(converted_path)
+            os.remove(file_path)  # Remove PNG
+        else:
+            final_filename = unique_filename
+            converted_path = file_path
 
-        # Record the upload time for cleanup
+        # Record metadata
         metadata[final_filename] = time.time()
 
-        # Generate link to access the image
+        # Return link
         image_link = request.url_root + 'images/' + final_filename
         return jsonify({"image_link": image_link})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        return jsonify({"error": str(e), "details": traceback.format_exc()}), 500
+
 
 
 @app.route('/images/<filename>', methods=['GET'])
